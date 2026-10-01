@@ -1,0 +1,507 @@
+% !TeX program = xelatex
+% Codificación: UTF-8. Compilar con XeLaTeX.
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=0.72in,top=0.68in,bottom=0.65in,footskip=0.30in]{geometry}
+\usepackage{fontspec}
+\setmainfont{Latin Modern Roman}
+\setsansfont{Latin Modern Sans}
+\setmonofont{DejaVu Sans Mono}[Scale=0.85]
+\usepackage{polyglossia}
+\setdefaultlanguage{spanish}
+\usepackage{amsmath,amssymb}
+\usepackage[table]{xcolor}
+\usepackage{graphicx}
+\usepackage{array,tabularx,booktabs,ragged2e}
+\usepackage{enumitem}
+\usepackage{fvextra}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{microtype}
+\usepackage{hyperref}
+\definecolor{azul}{HTML}{17365D}
+\definecolor{fila}{HTML}{F1F5F9}
+\definecolor{linea}{HTML}{D9E0E7}
+\hypersetup{colorlinks=true,linkcolor=azul,urlcolor=azul,
+  pdfauthor={Alberto José Corella Moreno},pdflang={es-MX}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+\setlength{\emergencystretch}{4em}
+\setlength{\headheight}{14pt}
+\raggedbottom
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+\titleformat{\section}{\sffamily\bfseries\fontsize{16}{19}\selectfont}{}{0pt}{}
+\titleformat{\subsection}{\sffamily\bfseries\fontsize{12}{14.5}\selectfont}{}{0pt}{}
+\titleformat{\subsubsection}{\sffamily\bfseries\fontsize{11}{13}\selectfont}{}{0pt}{}
+\titlespacing*{\section}{0pt}{0pt}{10pt}
+\titlespacing*{\subsection}{0pt}{10pt}{4pt}
+\titlespacing*{\subsubsection}{0pt}{8pt}{3pt}
+\setlist[itemize]{leftmargin=1.2em,itemsep=4pt,topsep=2pt,parsep=0pt}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.20}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\fvset{breaklines=true,breakanywhere=true,fontsize=\small,
+  frame=lines,rulecolor=\color{linea},framesep=5pt,
+  baselinestretch=1.02,tabsize=4}
+\hypersetup{pdftitle={Análisis y backtesting de portafolios de inversión}}
+\fancyfoot[R]{\sffamily\footnotesize Informe técnico\quad|\quad\thepage}
+
+\begin{document}
+
+{\RaggedRight\sffamily\bfseries\fontsize{22.5}{26}\selectfont Análisis y backtesting de portafolios de inversión\par}
+
+\vspace{3pt}{\large\itshape Informe técnico del diseño experimental y los resultados históricos\par}
+
+{\small Autor del proyecto: Alberto José Corella Moreno\\
+28 de septiembre de 2026\par}
+
+\vspace{4pt}
+
+\subsection*{Resumen ejecutivo}
+
+El estudio evalúa cómo distintas políticas de rebalanceo modifican el crecimiento, las pérdidas desde máximos y la composición de una cartera de cuatro activos. La evidencia muestra que rebalancear permite administrar la deriva de las exposiciones, pero su frecuencia debe valorarse junto con los costos y el periodo de inversión. Ninguna política encabeza todos los criterios evaluados.
+
+En el escenario principal, con ejecución al siguiente cierre y costo de 10 puntos base, la banda de \ensuremath{\pm}5 puntos porcentuales obtiene un CAGR de \textbf{9.21\%}, Sharpe de \textbf{0.790} y Sortino de \textbf{1.116}, con \textbf{12 rebalanceos}. La política mensual alcanza 8.98\%, 0.778 y 1.094, respectivamente, con 191 rebalanceos. La ventaja de la banda en los ratios es reducida y solo aparece en dos de cuatro subperiodos; su caída máxima es ligeramente más profunda.
+
+\subsection*{Objetivo y alcance}
+
+La pregunta de investigación es cómo cambia el desempeño al modificar la regla de restauración de pesos, manteniendo constantes el universo y la asignación inicial. Se construye una simulación histórica con registro de operaciones, costos autofinanciados y controles de consistencia. Los pesos objetivo son decisiones del experimento; el proyecto no realiza optimización de Markowitz ni estimación de señales predictivas.
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=0.302594\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=2.092219\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.605187\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Activo & \color{white}\bfseries Exposición & \color{white}\bfseries Peso objetivo \\
+
+SPY & Acciones estadounidenses del S\&P 500 & 25\% \\
+
+IEF & Bonos del Tesoro de 7 a 10 años & 25\% \\
+
+GLD & Oro & 25\% \\
+
+VNQ & Renta variable inmobiliaria estadounidense & 25\% \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+La muestra comprende \textbf{4,024 precios y 4,023 rendimientos diarios por activo}, del 4 de enero de 2010 al 31 de diciembre de 2025. El capital inicial es USD 10,000; todos los resultados son nominales en USD. SPY funciona como referencia accionaria externa, con una exposición distinta de la cartera diversificada.
+
+{\small Fuente de cifras y diseño: notebook y README del proyecto [1]. El escenario principal usa ejecución diferida; las cifras de los experimentos preliminares se identifican expresamente como operaciones al mismo cierre.\par}
+
+
+% 1 Datos y diseño experimental
+\clearpage
+
+\section*{1 Datos y diseño experimental}
+
+\subsection*{Origen y tratamiento de los datos}
+
+Los precios se obtienen de Yahoo Finance mediante yfinance. La descarga conserva Close y Adj Close por separado; el análisis utiliza Adj Close con los ajustes del proveedor por distribuciones y eventos corporativos. Los dividendos no se suman nuevamente. El final solicitado es 2026-01-01, exclusivo, para cubrir hasta diciembre de 2025 [6].
+
+La carga de archivos verifica índices temporales válidos, únicos y ordenados, precios positivos, valores finitos y correspondencia entre los rendimientos almacenados y los calculados. Estos controles evalúan coherencia interna; no acreditan la exhaustividad del calendario bursátil ni la exactitud de cada observación del proveedor.
+
+\begingroup
+\fontsize{9.5}{11.4}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=0.280980\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=1.253602\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=1.465418\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Etapa & \color{white}\bfseries Experimento & \color{white}\bfseries Propósito \\
+
+1 & Exploración de cuatro activos & Caracterizar retornos, riesgo y correlaciones \\
+
+2 & Mensual y SPY & Establecer el caso base y contabilizar costos \\
+
+3 & Sin rebalanceo, mensual, trimestral y anual & Comparar reglas de calendario \\
+
+4 & 5 periodos \ensuremath{\times} 6 costos \ensuremath{\times} 5 estrategias & Evaluar 150 escenarios \\
+
+5 & 145 ventanas nominales de 48 meses & Medir sensibilidad a la fecha de entrada \\
+
+6 & Bandas de \ensuremath{\pm}2.5, \ensuremath{\pm}5 y \ensuremath{\pm}10 pp & Relacionar deriva y actividad \\
+
+7 & Mismo cierre frente a siguiente cierre & Separar señal y ejecución \\
+
+8 & Sharpe y Sortino con RF diaria & Evaluar desempeño ajustado por riesgo \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+\subsection*{Condiciones comunes de la simulación}
+
+La cartera admite participaciones fraccionarias y permanece invertida después de pagar costos. No hay aportaciones, retiros, apalancamiento ni posiciones cortas. El cargo base de 10 pb equivale a 0.10\% del importe comprado más vendido; también se aplica a la entrada. No se rebalancea en la primera ni en la última fecha y no se liquida al terminar la muestra.
+
+Los bloques 2010--2013, 2014--2017, 2018--2021 y 2022--2025 reinician capital y pesos. Las ventanas móviles también reinician cada inversión. Son escenarios históricos comparables; no heredan posiciones ni constituyen una cartera formada al encadenar sus resultados.
+
+
+% 2 Motor de simulación y métricas
+\clearpage
+
+\section*{2 Motor de simulación y métricas}
+
+La función simular\_portafolio mantiene los valores monetarios por activo. En cada fecha aplica primero el cociente entre precios ajustados consecutivos a las posiciones existentes; después evalúa o ejecuta la orden. Los pesos resultantes determinan la exposición al intervalo posterior. Se conservan patrimonio, rendimientos, drawdown, pesos antes y después, costos y operaciones.
+
+\subsection*{Contabilidad autofinanciada}
+
+% Ecuación: balance
+\[
+V^{+}+c\sum_i\left|w_i^{*}V^{+}-h_i^{-}\right|=\sum_i h_i^{-}=V^{-}
+\]
+
+Aquí, h\textsuperscript{\ensuremath{-}} representa posiciones antes de negociar, w* los pesos objetivo, V\textsuperscript{\ensuremath{-}} el patrimonio previo, V\textsuperscript{+} el posterior y c la tasa de costo. La identidad se resuelve mediante 60 iteraciones de bisección. Las nuevas posiciones son w*V\textsuperscript{+}, por lo que las ventas financian tanto las compras como los cargos, sin recursos externos. La compra inicial invierte C\textsubscript{0}/(1+c). Esta formulación concreta el principio de autofinanciación [2].
+
+\subsection*{Crecimiento y pérdidas}
+
+% Ecuación: cagr
+\[
+\mathrm{CAGR}=\left(\frac{V_T}{C_0}\right)^{1/Y}-1
+\]
+
+El CAGR utiliza Y igual a los días efectivos de inversión divididos entre 365.25. La volatilidad es la desviación estándar muestral de los rendimientos entre cierres multiplicada por \(\sqrt{252}\). El drawdown divide el patrimonio entre su máximo previo, incluyendo C\textsubscript{0} como referencia inicial, y resta uno; la máxima caída es el menor drawdown.
+
+\subsection*{Rendimiento ajustado por riesgo}
+
+% Ecuación: sharpe
+\[
+e_t=r_t-r_{f,t},\qquad S=\sqrt{252}\,\frac{\overline e}{s(e)}
+\]
+
+% Ecuación: sortino
+\[
+d=\sqrt{\frac{1}{N}\sum_{t=1}^{N}\min(e_t,0)^2},\qquad\mathrm{Sortino}=\sqrt{252}\,\frac{\overline e}{d}
+\]
+
+La referencia RF diaria de Kenneth R. French se convierte de porcentaje a decimal una sola vez y se alinea estrictamente por fecha. Sharpe usa la desviación muestral del exceso; Sortino usa RF como objetivo y promedia los excesos negativos al cuadrado sobre todos los intervalos, incluidos los ceros [3--5]. La anualización es convencional y puede verse afectada por dependencia temporal.
+
+Para estos ratios, el costo inicial se integra en el primer intervalo real: V\textsubscript{1}/C\textsubscript{0} \ensuremath{-} 1. Las volatilidades de las etapas anteriores excluyen el registro aislado de entrada. Los costos pagados son cargos nominales; su impacto sobre riqueza final incluye además la capitalización perdida. Son magnitudes diferentes.
+
+
+% 3 Resultados del escenario principal
+\clearpage
+
+\section*{3 Resultados del escenario principal}
+
+La siguiente comparación emplea la muestra completa, ejecución al cierre de la siguiente sesión y un cargo de 10 pb. CAGR y máxima caída incorporan costos; Sharpe y Sortino son ratios anualizados con RF histórica. La compra inicial es inmediata en todas las estrategias.
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=1.621037\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=0.756484\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=1.008646\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.792507\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.821326\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Estrategia & \color{white}\bfseries CAGR & \color{white}\bfseries Máxima caída & \color{white}\bfseries Sharpe & \color{white}\bfseries Sortino \\
+
+Sin rebalanceo & 9.42\% & -25.95\% & 0.712 & 0.991 \\
+
+Mensual & 8.98\% & -21.03\% & 0.778 & 1.094 \\
+
+Trimestral & 9.03\% & -21.19\% & 0.784 & 1.104 \\
+
+Anual & 8.96\% & -20.96\% & 0.785 & 1.102 \\
+
+Banda \ensuremath{\pm}2.5 pp & 9.02\% & -21.22\% & 0.775 & 1.091 \\
+
+Banda \ensuremath{\pm}5 pp & 9.21\% & -21.36\% & 0.790 & 1.116 \\
+
+Banda \ensuremath{\pm}10 pp & 9.18\% & -21.19\% & 0.783 & 1.096 \\
+
+SPY & 13.90\% & -33.72\% & 0.764 & 1.073 \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+{\small Fuente: sección 8 del notebook. Los porcentajes se presentan con dos decimales y los ratios con tres; las diferencias del estudio se calculan antes del redondeo.\par}
+
+\subsection*{Crecimiento y exposición}
+
+SPY registra el mayor CAGR, 13.90\%, junto con una caída máxima de \ensuremath{-}33.72\%. La cartera mensual presenta una caída de \ensuremath{-}21.03\%, a cambio de un crecimiento menor. El contraste muestra un intercambio entre exposición accionaria y estabilidad; no identifica alfa ni habilidad de gestión ajustada por factores.
+
+Entre las carteras de cuatro activos, mantener posiciones obtiene el mayor CAGR, 9.42\%, pero termina con 47.49\% del patrimonio en SPY. Su Sharpe de 0.712 y Sortino de 0.991 son inferiores a los de las reglas de rebalanceo. El crecimiento adicional debe interpretarse junto con la concentración acumulada.
+
+\subsection*{Evaluación de la banda principal}
+
+La banda \ensuremath{\pm}5 pp alcanza el mayor Sharpe y Sortino de la tabla. Frente a mensual, las diferencias son \textbf{+0.012 y +0.022}. Su CAGR es 0.23 puntos porcentuales mayor según las cifras redondeadas, mientras la caída es aproximadamente 0.33 puntos porcentuales más profunda. No existe dominancia en todas las dimensiones.
+
+Los 12 rebalanceos de la banda contrastan con 191 mensuales. Este ahorro de actividad es una característica relevante del diseño, aunque el número de órdenes por sí solo no mide volumen negociado, costo total ni riesgo. Las ventajas históricas observadas no establecen un umbral óptimo.
+
+
+% 4 Costos actividad y deriva de pesos
+\clearpage
+
+\section*{4 Costos actividad y deriva de pesos}
+
+Esta sección describe los experimentos de las etapas 2 a 6, con \textbf{ejecución al mismo cierre}. Los conteos y rendimientos difieren del escenario principal cuando el retraso altera el momento de las reasignaciones.
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=1.548991\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=0.734870\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.878963\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.936599\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.900576\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Política & \color{white}\bfseries CAGR & \color{white}\bfseries Volatilidad & \color{white}\bfseries Costos USD & \color{white}\bfseries Rebalanceos \\
+
+Sin rebalanceo & 9.42\% & 11.70\% & 9.99 & 0 \\
+
+Mensual & 8.88\% & 9.95\% & 99.56 & 191 \\
+
+Trimestral & 8.92\% & 9.91\% & 63.10 & 63 \\
+
+Anual & 8.93\% & 9.81\% & 34.19 & 15 \\
+
+Banda \ensuremath{\pm}2.5 pp & 9.01\% & 10.06\% & 63.42 & 40 \\
+
+Banda \ensuremath{\pm}5 pp & 9.15\% & 10.12\% & 41.08 & 11 \\
+
+Banda \ensuremath{\pm}10 pp & 9.17\% & 10.14\% & 28.62 & 3 \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+El portafolio mensual termina con USD 38,991.30 frente a USD 39,204.49 sin costos. Paga USD 99.56 de cargos, pero su riqueza final es USD 213.19 menor. La diferencia incorpora la rentabilidad que esos recursos habrían generado, además del desembolso inicial de comisiones.
+
+\subsection*{Operar menos permite más deriva}
+
+La banda \ensuremath{\pm}5 pp registra 11 rebalanceos y costos de USD 41.08. Su volumen relativo anual es 9.06\%, frente a 27.85\% del mensual. Al mismo tiempo, la mayor desviación absoluta diaria respecto del objetivo, medida antes de operar y resumida por su mediana, aumenta de 0.61 a 2.43 pp. El ahorro operativo implica tolerar una composición más alejada del objetivo.
+
+% Ecuación: turnover
+\[
+A=\frac{1}{Y}\sum_{t\in\mathcal R}\frac{\mathrm{compras}_t+\mathrm{ventas}_t}{V_t^{-}}
+\]
+
+A suma compras y ventas relativas al patrimonio previo en las fechas de rebalanceo y divide entre los años efectivos. Excluye la entrada, cuenta ambos lados y no se divide entre dos. La tasa de costo se aplica al volumen; no es un cargo fijo sobre toda la cartera.
+
+\subsection*{Sensibilidad a cargos mayores}
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=1.268012\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=0.910663\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.910663\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.910663\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Política & \color{white}\bfseries CAGR con 0 pb & \color{white}\bfseries CAGR con 100 pb & \color{white}\bfseries Reducción en pp \\
+
+Sin rebalanceo & 9.43\% & 9.36\% & 0.068 \\
+
+Mensual & 8.92\% & 8.55\% & 0.371 \\
+
+Trimestral & 8.95\% & 8.70\% & 0.247 \\
+
+Anual & 8.95\% & 8.80\% & 0.145 \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+{\small La política mensual presenta la mayor sensibilidad. Los 100 pb constituyen un supuesto de estrés de costos, sin descomposición en spread, deslizamiento, impacto de mercado o impuestos. Las reducciones usan valores sin redondear.\par}
+
+
+% 5 Estabilidad por periodo y fecha de entrada
+\clearpage
+
+\section*{5 Estabilidad por periodo y fecha de entrada}
+
+Los 150 escenarios cruzan cinco periodos, seis tasas de costo ---0, 5, 10, 25, 50 y 100 pb--- y cinco estrategias. Con 10 pb y ejecución al mismo cierre, trimestral logra el mayor CAGR entre las cuatro carteras en 2010--2013 y 2018--2021; mantener posiciones lidera en 2014--2017 y 2022--2025. El orden cambia con el periodo.
+
+El liderazgo por CAGR también cambia al modificar costos en dos bloques. En 2010--2013, trimestral lidera de 0 a 50 pb y anual a 100 pb. En 2014--2017, mensual lidera sin cargos, pero mantener posiciones lidera con los cargos positivos simulados. La cuadrícula no permite inferir un costo exacto de cruce.
+
+\subsection*{Ventanas móviles de 48 meses}
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=1.268012\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=0.910663\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.910663\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.910663\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Política & \color{white}\bfseries CAGR mínimo & \color{white}\bfseries CAGR mediano & \color{white}\bfseries CAGR máximo \\
+
+Sin rebalanceo & 2.93\% & 6.98\% & 11.66\% \\
+
+Mensual & 2.88\% & 6.62\% & 11.26\% \\
+
+Trimestral & 2.97\% & 6.66\% & 11.44\% \\
+
+Anual & 2.98\% & 6.81\% & 11.44\% \\
+
+SPY & 6.97\% & 13.11\% & 22.60\% \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+Las 145 ventanas, desplazadas un mes, generan 725 simulaciones para las cuatro políticas y SPY. El rango de CAGR mensual, de 2.88\% a 11.26\%, muestra una sensibilidad a la entrada mayor que varias diferencias entre políticas. Los rendimientos positivos de extremo a extremo conviven con pérdidas intermedias; no establecen un horizonte seguro.
+
+\subsection*{Bandas frente al calendario mensual}
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=0.749280\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=1.123919\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=1.008646\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=1.118156\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Banda & \color{white}\bfseries Ventanas con mayor CAGR & \color{white}\bfseries Brecha mediana en pp & \color{white}\bfseries Ventanas con menor volatilidad \\
+
+\ensuremath{\pm}2.5 pp & 64.1\% & +0.071 & 6.9\% \\
+
+\ensuremath{\pm}5 pp & 74.5\% & +0.200 & 16.6\% \\
+
+\ensuremath{\pm}10 pp & 53.8\% & +0.054 & 29.0\% \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+En las 580 simulaciones adicionales, la banda \ensuremath{\pm}5 pp supera el CAGR mensual en 74.5\% de las ventanas, pero solo registra menor volatilidad en 16.6\% y una caída menos profunda en 20.7\%. Su mejor crecimiento suele acompañarse de mayor riesgo según esas medidas.
+
+Las ventanas contiguas comparten casi todo el historial. Las proporciones y medianas describen sensibilidad, no probabilidades futuras, pruebas independientes ni validación fuera de muestra. Tampoco se estiman intervalos de confianza o significancia de las diferencias.
+
+
+% 6 Ejecución diferida y riesgo por subperiodo
+\clearpage
+
+\section*{6 Ejecución diferida y riesgo por subperiodo}
+
+El modo siguiente\_cierre registra la señal al cierre y ejecuta en la próxima sesión disponible. Las posiciones anteriores reciben íntegramente el rendimiento entre ambos cierres. Una orden por bandas se conserva aunque la desviación regrese al intervalo; la exclusión de la última fecha puede impedir ejecutar señales de la penúltima sesión.
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=1.109510\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=1.044669\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=1.080692\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.792507\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.972622\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Regla & \color{white}\bfseries CAGR mismo cierre & \color{white}\bfseries CAGR siguiente cierre & \color{white}\bfseries Cambio en pp & \color{white}\bfseries Rebalanceos \\
+
+Mensual & 8.88\% & 8.98\% & +0.101 & 191 \ensuremath{\rightarrow} 191 \\
+
+Trimestral & 8.92\% & 9.03\% & +0.107 & 63 \ensuremath{\rightarrow} 63 \\
+
+Anual & 8.93\% & 8.96\% & +0.030 & 15 \ensuremath{\rightarrow} 15 \\
+
+Banda \ensuremath{\pm}5 pp & 9.15\% & 9.21\% & +0.057 & 11 \ensuremath{\rightarrow} 12 \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+El efecto del retraso sobre el CAGR varía entre \ensuremath{-}0.152 y +0.300 pp anuales al considerar reglas y bloques. No equivale a restar un costo fijo: depende de los movimientos durante la espera y de las activaciones posteriores. Mantener posiciones y SPY conservan sus trayectorias porque no generan rebalanceos.
+
+\subsection*{Consistencia de los ratios}
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=1.023055\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=0.922190\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=1.066282\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=0.922190\hsize\linewidth=\hsize\Centering\arraybackslash}X>{\hsize=1.066282\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Periodo & \color{white}\bfseries Sharpe mensual & \color{white}\bfseries Sharpe banda \ensuremath{\pm}5 pp & \color{white}\bfseries Sortino mensual & \color{white}\bfseries Sortino banda \ensuremath{\pm}5 pp \\
+
+2010--2013 & 0.946 & 0.940 & 1.359 & 1.351 \\
+
+2014--2017 & 1.060 & 1.050 & 1.507 & 1.489 \\
+
+2018--2021 & 0.902 & 0.910 & 1.222 & 1.249 \\
+
+2022--2025 & 0.359 & 0.397 & 0.513 & 0.569 \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+Con ejecución diferida, la banda \ensuremath{\pm}5 pp supera al mensual en ambos ratios en los dos últimos bloques y queda por debajo en los dos primeros. Esta variación limita la interpretación de su liderazgo agregado. Las diferencias no han sido sometidas a pruebas de significancia ni a corrección por comparaciones múltiples.
+
+\subsection*{Referencia libre de riesgo}
+
+Se utiliza RF diaria de Kenneth R. French, con versión local CRSP 202608. Su referencia de letras de un mes procede de Ibbotson hasta mayo de 2024 y del índice ICE BofA US 1-Month Treasury Bill desde junio de 2024 [5]. El historial alineado acumula 24.57\%, equivalente a 1.38\% geométrico anual. RF interviene en la evaluación, no en las señales de inversión.
+
+La separación temporal mejora el diseño de la simulación, pero operar a un cierre ajustado con fracciones sigue siendo una aproximación. No representa precios ejecutables, órdenes de apertura, liquidez ni costos observados de un intermediario.
+
+
+% 7 Reproducibilidad, limitaciones y conclusión
+\clearpage
+
+\section*{7 Reproducibilidad, limitaciones y conclusión}
+
+\subsection*{Arquitectura y controles}
+
+El notebook contiene el motor y las investigaciones. El README describe la organización de data/, scripts/ y tests/, así como 51 pruebas automatizadas en seis archivos. Los controles visibles comprueban balance patrimonial, correspondencia costo--volumen, restauración de pesos, calendarios, composición de rendimientos y relación entre señal y ejecución.
+
+La reproducción de la muestra conservada requiere los CSV de activos, RF y sus metadatos. Se inicia en la celda de carga y validación de la sección 1, omitiendo la descarga inicial que sobrescribe los archivos. El hash SHA-256 detecta cambios en el CSV de RF respecto de sus metadatos; no certifica por sí mismo la veracidad económica de los datos.
+
+\subsection*{Límites de inferencia}
+
+\begin{itemize}
+
+\item \textbf{Selección y validación.} Cuatro instrumentos fijos y una muestra observada. Los bloques y ventanas son análisis de estabilidad dentro del historial; no existe una muestra posterior reservada para evaluar la regla seleccionada.
+
+\item \textbf{Datos y ejecución.} Precios ajustados retrospectivos, posibles revisiones, fracciones y costos proporcionales. No se modelan por separado spreads, deslizamiento, impacto o restricciones de liquidez.
+
+\item \textbf{Medición patrimonial.} Sin impuestos, inflación, aportaciones, retiros ni venta terminal. Las cifras no equivalen a resultados netos en MXN para un inversionista mexicano.
+
+\item \textbf{Comparación estadística.} Las ventanas se solapan y los escenarios comparten datos. Los ratios dependen de la convención de anualización y no resumen concentración, duración de pérdidas o riesgo de cola.
+
+\end{itemize}
+
+\subsection*{Conclusión}
+
+El aporte principal es un procedimiento trazable para comparar decisiones de asignación bajo supuestos explícitos. El rebalanceo reduce la deriva de pesos; operar con mayor frecuencia aumenta actividad y sensibilidad a costos sin garantizar mayor crecimiento. Las bandas concentran las operaciones en desviaciones relevantes y presentan un intercambio medible entre composición y negociación.
+
+La banda \ensuremath{\pm}5 pp resulta una alternativa de interés dentro de esta muestra, por su baja actividad y sus ratios agregados, pero su ventaja es pequeña y variable entre periodos. Un desarrollo posterior debería definir por anticipado un criterio de selección, incorporar costos de ejecución más detallados y evaluar la política sobre datos posteriores no utilizados para elegirla.
+
+
+% Referencias
+\clearpage
+
+\section*{Referencias}
+
+{\small\RaggedRight [1] Corella Moreno, A. J. (2026). Análisis y backtesting de portafolios de inversión. Notebook y README del proyecto; versión entregada el 28 de septiembre de 2026.\par}
+
+{\small\RaggedRight [2] \href{https://stanford.edu/~boyd/papers/pdf/cvx_portfolio.pdf}{Boyd, S., et al. (2016). Multi-Period Trading via Convex Optimization. Sección 2.5.}\par}
+
+{\small\RaggedRight [3] \href{https://web.stanford.edu/~wfsharpe/art/sr/sr.htm}{Sharpe, W. F. (1994). The Sharpe Ratio. The Journal of Portfolio Management.}\par}
+
+{\small\RaggedRight [4] \href{https://www.cmegroup.com/content/dam/cmegroup/education/files/sortino-a-sharper-ratio.pdf}{Rollinger, T. N., y Hoffman, S. T. (s. f.). Sortino: A Sharper Ratio. Red Rock Capital; alojado por CME Group.}\par}
+
+{\small\RaggedRight [5] \href{https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/Data_Library/f-f_factors.html}{Kenneth R. French Data Library. Description of Fama/French Factors. Documentación de RF.}\par}
+
+{\small\RaggedRight [6] \href{https://ranaroussi.github.io/yfinance/reference/api/yfinance.download.html}{yfinance. Documentación de yfinance.download.}\par}
+
+{\small Las cifras empíricas y los fragmentos de código proceden del notebook. Los enlaces metodológicos fueron consultados el 28 de septiembre de 2026.\par}
+
+\subsection*{Trazabilidad de las cifras}
+
+\begingroup
+\fontsize{10}{12.0}\selectfont
+
+\rowcolors{2}{white}{fila}
+
+\noindent\begin{tabularx}{\linewidth}{>{\hsize=1.008646\hsize\linewidth=\hsize\RaggedRight\arraybackslash}X>{\hsize=0.991354\hsize\linewidth=\hsize\Centering\arraybackslash}X}
+
+\rowcolor{azul} \color{white}\bfseries Contenido de este informe & \color{white}\bfseries Ubicación en el notebook \\
+
+Universo y calidad de datos & Sección 1 \\
+
+Motor y costos autofinanciados & Sección 2, simular\_portafolio \\
+
+Frecuencias y concentración & Sección 3 \\
+
+Subperiodos y sensibilidad a costos & Sección 4 \\
+
+Ventanas y comparaciones pareadas & Secciones 5 y 6 \\
+
+Retraso de ejecución & Sección 7 \\
+
+Ratios agregados y por bloque & Sección 8 \\
+
+\end{tabularx}\par\endgroup
+\vspace{4pt}
+
+\end{document}

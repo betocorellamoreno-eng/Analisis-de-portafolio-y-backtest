@@ -1,0 +1,21 @@
+{
+  "provider": "Kenneth R. French Data Library",
+  "dataset": "Fama/French 3 Factors [Daily] - RF column",
+  "download_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/ftp/F-F_Research_Data_Factors_daily_CSV.zip",
+  "methodology_url": "https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/Data_Library/f-f_factors.html",
+  "prepared_utc": "2026-09-26T01:43:03.755780+00:00",
+  "archive_modified_utc": "2026-09-26T01:40:47.023616+00:00",
+  "archive_file": "F-F_Research_Data_Factors_daily_CSV.zip",
+  "archive_member": "F-F_Research_Data_Factors_daily.csv",
+  "archive_sha256": "2f29e22546069914890a712680a6f81f3680ebc3543b52864484d209ca13a7db",
+  "csv_sha256": "c909684fd749f1c95e381d2420c3cd2d16b6195a1adbd6cddf396a41ac44e981",
+  "source_vintage": "This file was created by using the 202608 CRSP database.",
+  "source_units": "Percent per trading day; simple daily T-bill return derived from monthly rate.",
+  "decimal_conversion": "RF_pct / 100; do not divide by 252 or add weekend interest.",
+  "source_change": "Ibbotson Associates through 2024-05; ICE BofA US 1-Month Treasury Bill Index from 2024-06.",
+  "snapshot_note": "Retrospective downloaded vintage; reference for ex-post metrics only, not a trading signal.",
+  "start": "2010-01-04",
+  "end": "2025-12-31",
+  "observations": 4024,
+  "calendar_matches_prices": true
+}
